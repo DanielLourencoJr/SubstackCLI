@@ -74,6 +74,7 @@ Usage:
   substack-cli drafts schedule <id> --at <ISO8601> [--pub host]
   substack-cli drafts unschedule <id> [--pub host]
   substack-cli drafts export <id> [--output file.md] [--md-dir dir] [--pub host] [--json]
+  substack-cli sync [--dir ./Articles] [--pub host] [--env file] [--dry-run] [--yes] [--republish] [--no-pull] [--no-push] [--json]
   substack-cli drafts counts [--pub host] [--json]
   substack-cli published list [--limit N] [--offset N] [--pub host] [--json]
   substack-cli scheduled list [--limit N] [--pub host] [--json]
@@ -369,6 +370,61 @@ async function cmdScheduledList(rest, flags) {
   } catch (e) { console.error(`❌ scheduled list failed: ${e.message}`); process.exit(1); }
 }
 
+async function cmdSync(rest, flags) {
+  const { _, flags: f } = parseArgs(rest);
+  // dir from first positional or --dir
+  const dirFromPos = _[0];
+  const dir = f["dir"] || flags["dir"] || dirFromPos || "./Articles";
+  const pub = getPub({ ...flags, ...f });
+  const wantJson = !!(f["json"] || flags["json"]);
+  const dryRun = !!(f["dry-run"] || flags["dry-run"] || f["dryRun"]);
+  const yes = !!(f["yes"] || flags["yes"] || f["y"]);
+  const republish = !!(f["republish"] || flags["republish"]);
+  const noPull = !!(f["no-pull"] || flags["no-pull"]);
+  const noPush = !!(f["no-push"] || flags["no-push"]);
+  const sid = needSid({ ...flags, ...f });
+  const { syncFolder } = await import("../lib/sync.js");
+  try {
+    const res = await syncFolder({
+      sid,
+      publicationUrl: pub,
+      dir,
+      dryRun,
+      yes,
+      republish,
+      pull: !noPull,
+      push: !noPush,
+    });
+    if (wantJson) {
+      console.log(JSON.stringify(res, null, 2));
+    } else {
+      if (dryRun) console.log(`[dry-run] dir=${res.dir} pub=${publicationUrlDisplay(pub)}`);
+      else if (res.needsYes) console.log(`[sync] --yes required to apply ${res.actions.length} action(s)`);
+      else console.log(`[sync] done dir=${res.dir} pub=${publicationUrlDisplay(pub)}`);
+      if (res.actions.length === 0) console.log("  (no changes)");
+      else {
+        for (const a of res.actions) {
+          if (a.type === "create") console.log(`  + create ${a.path} title="${a.title}"`);
+          else if (a.type === "update") console.log(`  ~ update ${a.path} id=${a.id}${a.isPublished ? " (published)" : ""}`);
+          else if (a.type === "pull") console.log(`  - pull id=${a.id} ${a.title ? `title="${a.title}"` : a.path ? `path=${a.path}` : ""}`);
+          else if (a.type === "conflict") console.log(`  ! conflict id=${a.id} ${a.path} (local and remote both changed)`);
+        }
+        console.log(`  summary: create=${res.toCreate} update=${res.toUpdate} pull=${res.toPull} conflict=${res.conflicts}`);
+        if (!dryRun && !yes && res.actions.length) console.log(`  run with --yes to apply`);
+        if (res.conflicts && res.conflicts > 0) console.log(`  conflicts need manual resolution`);
+      }
+    }
+  } catch (e) {
+    console.error(`❌ sync failed: ${e.message}`);
+    if (e.stack) console.error(e.stack.split("\n").slice(1, 4).join("\n"));
+    process.exit(1);
+  }
+}
+
+function publicationUrlDisplay(pub) {
+  return pub.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+}
+
 async function cmdDraftsExport(rest, flags) {
   const { _, flags: f } = parseArgs(rest);
   const id = _[0];
@@ -415,6 +471,8 @@ async function main() {
   if (ns === "published" && cmd === "list") return cmdPublishedList(rest, globalFlags);
   if (ns === "scheduled" && cmd === "list") return cmdScheduledList(rest, globalFlags);
 
+  if (ns === "sync" && (!cmd || cmd === "--help" || cmd === "-h")) return cmdSync([], globalFlags);
+  if (ns === "sync") return cmdSync([cmd, ...rest], globalFlags);
   if (ns !== "drafts") { console.error(`Unknown command: ${ns} ${cmd}`); help(); process.exit(1); }
 
   if (cmd === "create") return cmdDraftsCreate(rest, globalFlags);
