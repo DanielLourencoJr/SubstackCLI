@@ -9,10 +9,13 @@ ESM Node 18+ (native `fetch`). No deps. Mirrors `SubstackKit` style (`bin/cli.js
 ## Structure
 | Path | Purpose |
 |---|---|
-| `bin/cli.js` | CLI dispatcher (`drafts create|list|get|update|delete|publish|schedule|unschedule|counts` + `published list`/`scheduled list`) — flags: `--pub`, `--title`, `--subtitle`, `--audience`, `--env`, `--sid`, `--json`, `--dry-run`, `--yes`, `--send/--no-send`, `--at` |
-| `lib/md.js` | `mdToTiptap` + `parseInline` — Tiptap nodes: `heading`/`paragraph`/`bulletList`/`orderedList`/`blockquote`/`codeBlock`/`horizontalRule` + marks `strong`/`em`/`code`/`link`/`strike` |
+| `bin/cli.js` | CLI dispatcher (`drafts create|list|get|update|delete|publish|schedule|unschedule|export|counts` + `published list`/`scheduled list`) — flags: `--pub`, `--title`, `--subtitle`, `--audience`, `--env`, `--sid`, `--json`, `--dry-run`, `--yes`, `--send/--no-send`, `--at`, `--output`, `--md-dir` |
+| `lib/md.js` | `mdToTiptap(markdown, {imageMap})` + `parseInline` — Tiptap nodes: `heading`/`paragraph`/`bulletList`/`orderedList`/`blockquote`/`codeBlock`/`horizontalRule` + marks `strong`/`em`/`code`/`link`/`strike` + standalone `captionedImage` for `![alt](src "caption")` |
 | `lib/auth.js` | `getSid` (loads `.env` + central `/mnt/HD/Junior/Projects/.substack.test.env` fallback) + `resolveBylines` via `GET /user/profile/self` |
-| `lib/drafts.js` | `createDraft` (`POST {pub}/drafts`), `getDraft`, `updateDraft` (`PUT`), `deleteDraft`, `listDrafts`/`listPublished`/`listScheduled` (`GET /post_management/*`), `prepublishDraft`, `publishDraft` (`POST /publish` {send, share_automatically}), `scheduleDraft`/`unscheduleDraft` (`/scheduled_release` {trigger_at}), `getCounts` |
+| `lib/drafts.js` | `createDraft`/`updateDraft` (auto `uploadLocalImages` → `mdToTiptap` → `draft_bylines`), `getDraft`, `deleteDraft`, `listDrafts`/`listPublished`/`listScheduled`, `prepublishDraft`, `publishDraft`, `scheduleDraft`/`unscheduleDraft`, `getCounts` |
+| `lib/images.js` | `uploadImage` (`POST {pub}/image` base64) → `captionedImage>image2` + `findLocalImages`/`buildCaptionedImage` (200ms gap) |
+| `lib/frontmatter.js` | `parseFrontmatter`/`stringifyFrontmatter` — YAML `title/subtitle/audience/slug/tags` (CLI flags override) |
+| `lib/convert.js` | `tiptapToMarkdown`/`draftToMarkdown` — reverse `draft_body` → md with frontmatter, `pullquote`→`:::pullquote`, `calloutBlock`, `captionedImage`→`![alt](src "caption")`, `footnoteAnchor`/`footnote`, `latex`→`$`, `codeBlock`, `horizontal_rule`, opaque `<!-- substack-cli-node:v1 ... -->` |
 | `tests/md.test.mjs` | 8 offline unit tests (`node --test`) |
 
 ## Key Conventions (from SubstackAPI docs)
@@ -49,7 +52,6 @@ Per-env: `/mnt/HD/Junior/Projects/.substack.test.env` (`SUBSTACK_SID=...`).
 - `drafts publish` id `215860457` `Publish Cycle Test` — `prepublish` {errors:[], suggestions:[MISSING_SUBSCRIBE_CTA]}, `POST /publish` {send:false} → slug `publish-cycle-test-substack-cli`, `is_published:true`, published list grew 4→5, `drafts get` shows slug, then `DELETE` cleaned (counts 5→4)
 - `drafts update` id `215860524` — `PUT` title override + body `strong`/`bulletList` verified via `GET`
 - `drafts schedule/unschedule` id `215860538` — `POST /scheduled_release` {trigger_at:2027-01-01T12:00:00Z} → `postSchedules:[12583875]`, `scheduled list` shows it, `GET /scheduled_release` verified, `DELETE /scheduled_release` → [12583875], list empty, then `DELETE` draft cleaned
-
-## Next (not yet implemented)
-- Image upload `POST {pub}/image` → `captionedImage > image2` + `convert` back to md
-- Frontmatter YAML (`title/slug/tags/audience`) + `mdDir` layout like `SubstackKit/texts/<author>/Articles/`
+- `image upload` id `215863463` local `local_test.png` → `POST {pub}/image` → `captionedImage>image2` `f398c74f_1x1.png` `width:1 height:1 bytes:70`, `draft_body` contains `captionedImage` with `Figure 1: Local image caption`, publish `image-upload-test-substack-cli` body_html has `<div class="captioned-image-container">` then `DELETE`
+- `frontmatter` id `215863656` `--- title: FM Title Override / subtitle: FM Subtitle / audience: only_paid ---` + `![Alt](./local_test.png "Caption")` → `draft_title` FM Title, `draft_subtitle` FM Subtitle, `audience:only_paid` verified, uploaded `1c9f17c9_1x1.png` `1x1`
+- `complex showcase` kept `215860998` `publish-cycle-test-substack-cli` — 42-node Tiptap (headings, bold/italic/bold+italic/code/strikethrough/sup/subscript/link, bullet_list/ordered_list/blockquote, pullquote `color:#FF5733`→`<div class="pullquote">`, calloutBlock→`<div class="callout-block">`, codeBlock, horizontal_rule, captionedImage, footnoteAnchor/footnote, youtube2, textStyle `RED/BLUE`) → `body_html` 8972 wc 188, `GET /drafts` + `GET /posts/by-id` verified, `drafts export` → `114 lines` md with `:::pullquote`/`:::callout`/`[^1]`/`![alt](src "caption")` + frontmatter, `--md-dir` writes `Articles/<slug>.md`

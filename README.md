@@ -29,9 +29,23 @@ drafts delete <id> [--pub host] [--yes] [--json]
 drafts publish <id> [--send|--no-send] [--yes] [--pub host] [--json]   # --no-send is silent (default)
 drafts schedule <id> --at 2027-01-01T12:00:00Z [--pub host]
 drafts unschedule <id> [--pub host]
+drafts export <id> [--output file.md] [--md-dir dir] [--pub host] [--json]
 drafts counts [--pub host] [--json]
 published list [--limit 20] [--offset 0] [--pub host] [--json]
 scheduled list [--limit 20] [--pub host] [--json]
+```
+
+Frontmatter in `post.md` overrides flags:
+
+```yaml
+---
+title: FM Title
+subtitle: FM Subtitle
+audience: only_paid
+tags: [a, b]
+---
+# Body...
+![Alt](./local.png "Caption")  # local paths auto-upload to captionedImage
 ```
 
 Safety: `create` never publishes. `publish` requires `--yes`; default `--no-send` (silent). `send` emails irreversibly.

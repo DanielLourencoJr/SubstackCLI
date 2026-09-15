@@ -73,6 +73,7 @@ Usage:
   substack-cli drafts publish <id> [--send|--no-send] [--yes] [--pub host] [--json]
   substack-cli drafts schedule <id> --at <ISO8601> [--pub host]
   substack-cli drafts unschedule <id> [--pub host]
+  substack-cli drafts export <id> [--output file.md] [--md-dir dir] [--pub host] [--json]
   substack-cli drafts counts [--pub host] [--json]
   substack-cli published list [--limit N] [--offset N] [--pub host] [--json]
   substack-cli scheduled list [--limit N] [--pub host] [--json]
@@ -368,6 +369,39 @@ async function cmdScheduledList(rest, flags) {
   } catch (e) { console.error(`❌ scheduled list failed: ${e.message}`); process.exit(1); }
 }
 
+async function cmdDraftsExport(rest, flags) {
+  const { _, flags: f } = parseArgs(rest);
+  const id = _[0];
+  if (!id) { console.error("Missing <id>"); process.exit(1); }
+  const pub = getPub({ ...flags, ...f });
+  const wantJson = !!(f["json"] || flags["json"]);
+  const output = f["output"] || f["o"] || flags["output"] || null;
+  const mdDir = f["md-dir"] || flags["md-dir"] || null;
+  const sid = needSid({ ...flags, ...f });
+  try {
+    const { draftToMarkdown } = await import("../lib/convert.js");
+    const data = await getDraft({ sid, publicationUrl: pub, id });
+    const md = draftToMarkdown(data, { frontmatter: true });
+    const unsupported = []; // collect opaque nodes already encoded in md as comments
+    if (wantJson) {
+      console.log(JSON.stringify({ id: Number(id), markdown: md, draft: data }, null, 2));
+    } else if (mdDir) {
+      // mdDir layout like SubstackKit: <mdDir>/Articles/<slug>.md
+      const slug = (data.slug || data.draft_title || `draft-${id}`).replace(/[^a-z0-9\-]/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || `draft-${id}`;
+      const dir = path.join(mdDir, "Articles");
+      fs.mkdirSync(dir, { recursive: true });
+      const outPath = path.join(dir, `${slug}.md`);
+      fs.writeFileSync(outPath, md, "utf8");
+      console.log(`✅ Exported ${id} → ${outPath}`);
+    } else if (output) {
+      fs.writeFileSync(output, md, "utf8");
+      console.log(`✅ Exported ${id} → ${output}`);
+    } else {
+      console.log(md);
+    }
+  } catch (e) { console.error(`❌ drafts export failed: ${e.message}`); process.exit(1); }
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (!argv.length || argv.includes("--help") || argv.includes("-h") || argv[0] === "help") { help(); return; }
@@ -391,6 +425,7 @@ async function main() {
   if (cmd === "publish") return cmdDraftsPublish(rest, globalFlags);
   if (cmd === "schedule") return cmdDraftsSchedule(rest, globalFlags);
   if (cmd === "unschedule") return cmdDraftsUnschedule(rest, globalFlags);
+  if (cmd === "export") return cmdDraftsExport(rest, globalFlags);
   if (cmd === "counts") return cmdDraftsCounts(rest, globalFlags);
 
   console.error(`Unknown drafts command: ${cmd}`);
