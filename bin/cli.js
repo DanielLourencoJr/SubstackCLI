@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getSid } from "../lib/auth.js";
 import { mdToTiptap } from "../lib/md.js";
+import { parseFrontmatter } from "../lib/frontmatter.js";
 import {
   createDraft,
   getDraft,
@@ -113,9 +114,20 @@ async function cmdDraftsCreate(rest, flags) {
     process.exit(1);
   }
   let markdown = "";
+  let fmData = {};
   if (file) {
     if (!fs.existsSync(file)) { console.error(`File not found: ${file}`); process.exit(1); }
     markdown = fs.readFileSync(file, "utf8");
+    const parsed = parseFrontmatter(markdown);
+    fmData = parsed.data;
+    markdown = parsed.body;
+    // frontmatter overrides (CLI flags take precedence)
+    if (!title && fmData.title) title = String(fmData.title);
+    if (!subtitle && fmData.subtitle) subtitle = String(fmData.subtitle);
+    // audience from frontmatter if not set via flag
+    if ((f["audience"] == null && flags["audience"] == null) && fmData.audience) {
+      // will be handled below via fmData
+    }
     if (!title) {
       const m = markdown.match(/^#\s+(.+)$/m);
       if (m) title = m[1].trim();
@@ -125,11 +137,14 @@ async function cmdDraftsCreate(rest, flags) {
     markdown = f["markdown"] || "# Dry run\n\nHello.";
     title = title || "Dry run";
   }
+  // audience: CLI > frontmatter > default
+  const fmAudience = fmData.audience ? String(fmData.audience) : null;
+  const finalAudience = audience !== "everyone" ? audience : (fmAudience || "everyone");
   if (!markdown.trim()) { console.error("Markdown is empty"); process.exit(1); }
 
   if (dryRun) {
     const doc = mdToTiptap(markdown);
-    const payload = { draft_title: title, draft_subtitle: subtitle || "", draft_body: JSON.stringify(doc), type: "newsletter", audience, draft_bylines: [] };
+    const payload = { draft_title: title, draft_subtitle: subtitle || "", draft_body: JSON.stringify(doc), type: "newsletter", audience: finalAudience, draft_bylines: [] };
     if (wantJson) console.log(JSON.stringify({ dryRun: true, pub, payload, tiptap: doc }, null, 2));
     else { console.log(`[dry-run] pub=${pub} title="${title}" nodes=${doc.content.length} bytes=${Buffer.byteLength(payload.draft_body, "utf8")}`); console.log(JSON.stringify(payload, null, 2).slice(0, 2000)); }
     return;
@@ -137,7 +152,8 @@ async function cmdDraftsCreate(rest, flags) {
 
   const sid = needSid({ ...flags, ...f, env: envFile, sid: sidOverride });
   try {
-    const res = await createDraft({ sid, publicationUrl: pub, markdown, title, subtitle, audience });
+    const baseDir = file ? path.dirname(path.resolve(file)) : ".";
+    const res = await createDraft({ sid, publicationUrl: pub, markdown, title, subtitle, audience: finalAudience, baseDir });
     const url = `https://${pub.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/publish/post/${res.id}`;
     if (wantJson) console.log(JSON.stringify({ id: res.id, url, title, pub, raw: res.raw }, null, 2));
     else { console.log(`✅ Draft created: id=${res.id}`); console.log(`   Title: ${title}`); console.log(`   URL:   ${url}`); console.log(`   Pub:   ${pub}`); }
@@ -201,12 +217,18 @@ async function cmdDraftsUpdate(rest, flags) {
   const wantJson = !!(f["json"] || flags["json"]);
   const sid = needSid({ ...flags, ...f });
   if (!fs.existsSync(file)) { console.error(`File not found: ${file}`); process.exit(1); }
-  const markdown = fs.readFileSync(file, "utf8");
-  const title = f["title"] || flags["title"] || null;
-  const subtitle = f["subtitle"] || flags["subtitle"] || null;
-  const audience = f["audience"] || flags["audience"] || undefined;
+  let markdown = fs.readFileSync(file, "utf8");
+  const parsed = parseFrontmatter(markdown);
+  markdown = parsed.body;
+  let title = f["title"] || flags["title"] || null;
+  let subtitle = f["subtitle"] || flags["subtitle"] || null;
+  let audience = f["audience"] || flags["audience"] || undefined;
+  if (!title && parsed.data.title) title = String(parsed.data.title);
+  if (!subtitle && parsed.data.subtitle) subtitle = String(parsed.data.subtitle);
+  if (!audience && parsed.data.audience) audience = String(parsed.data.audience);
+  const baseDir = path.dirname(path.resolve(file));
   try {
-    const data = await updateDraft({ sid, publicationUrl: pub, id, markdown, title, subtitle, audience });
+    const data = await updateDraft({ sid, publicationUrl: pub, id, markdown, title, subtitle, audience, baseDir });
     if (wantJson) console.log(JSON.stringify(data, null, 2));
     else console.log(`✅ Draft ${id} updated: title="${data.draft_title || title}"`);
   } catch (e) { console.error(`❌ drafts update failed: ${e.message}`); process.exit(1); }
