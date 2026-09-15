@@ -9,10 +9,10 @@ ESM Node 18+ (native `fetch`). No deps. Mirrors `SubstackKit` style (`bin/cli.js
 ## Structure
 | Path | Purpose |
 |---|---|
-| `bin/cli.js` | CLI dispatcher (`drafts create`) — flags: `--pub`, `--title`, `--subtitle`, `--audience`, `--env`, `--sid`, `--json`, `--dry-run` |
+| `bin/cli.js` | CLI dispatcher (`drafts create|list|get|update|delete|publish|schedule|unschedule|counts` + `published list`/`scheduled list`) — flags: `--pub`, `--title`, `--subtitle`, `--audience`, `--env`, `--sid`, `--json`, `--dry-run`, `--yes`, `--send/--no-send`, `--at` |
 | `lib/md.js` | `mdToTiptap` + `parseInline` — Tiptap nodes: `heading`/`paragraph`/`bulletList`/`orderedList`/`blockquote`/`codeBlock`/`horizontalRule` + marks `strong`/`em`/`code`/`link`/`strike` |
 | `lib/auth.js` | `getSid` (loads `.env` + central `/mnt/HD/Junior/Projects/.substack.test.env` fallback) + `resolveBylines` via `GET /user/profile/self` |
-| `lib/drafts.js` | `createDraft` (`POST {pub}/drafts`), `getDraft`, `deleteDraft` — payload: `draft_title`/`draft_subtitle`/`draft_body` (stringified) + `draft_bylines` |
+| `lib/drafts.js` | `createDraft` (`POST {pub}/drafts`), `getDraft`, `updateDraft` (`PUT`), `deleteDraft`, `listDrafts`/`listPublished`/`listScheduled` (`GET /post_management/*`), `prepublishDraft`, `publishDraft` (`POST /publish` {send, share_automatically}), `scheduleDraft`/`unscheduleDraft` (`/scheduled_release` {trigger_at}), `getCounts` |
 | `tests/md.test.mjs` | 8 offline unit tests (`node --test`) |
 
 ## Key Conventions (from SubstackAPI docs)
@@ -45,11 +45,11 @@ Per-env: `/mnt/HD/Junior/Projects/.substack.test.env` (`SUBSTACK_SID=...`).
 
 ## Tested Live (2026-09-15)
 - `drafts create` id `215859735` + `215859764` on `danielloureno.substack.com` (TEST) — verified `GET /drafts/{id}` returns `draft_title`, `draft_body` with correct Tiptap (heading, strong, em, code, link, bulletList, blockquote, codeBlock, hr), `postBylines` correct, then `DELETE` cleaned both (GET returns `Rascunho não encontrado`).
+- `drafts list` / `drafts counts` / `published list` — `GET /post_management/drafts` shows 32 drafts, `counts` published 4/drafts 32, published list top [202745152,…]
+- `drafts publish` id `215860457` `Publish Cycle Test` — `prepublish` {errors:[], suggestions:[MISSING_SUBSCRIBE_CTA]}, `POST /publish` {send:false} → slug `publish-cycle-test-substack-cli`, `is_published:true`, published list grew 4→5, `drafts get` shows slug, then `DELETE` cleaned (counts 5→4)
+- `drafts update` id `215860524` — `PUT` title override + body `strong`/`bulletList` verified via `GET`
+- `drafts schedule/unschedule` id `215860538` — `POST /scheduled_release` {trigger_at:2027-01-01T12:00:00Z} → `postSchedules:[12583875]`, `scheduled list` shows it, `GET /scheduled_release` verified, `DELETE /scheduled_release` → [12583875], list empty, then `DELETE` draft cleaned
 
 ## Next (not yet implemented)
-- `drafts list|get|update|delete` (`GET /post_management/drafts` offset, `PUT /drafts/{id}`)
-- `drafts publish` (`POST /drafts/{id}/publish` {send, share_automatically} + prepublish check)
-- `drafts schedule/unschedule` (`POST /drafts/{id}/scheduled_release` {trigger_at})
-- `published list|get` (`GET /post_management/published`)
 - Image upload `POST {pub}/image` → `captionedImage > image2` + `convert` back to md
 - Frontmatter YAML (`title/slug/tags/audience`) + `mdDir` layout like `SubstackKit/texts/<author>/Articles/`
