@@ -1,0 +1,16 @@
+{
+  "name": "substack-cli",
+  "version": "0.1.0",
+  "description": "CLI to upload and manage Substack drafts/published posts (Tiptap, substack.sid auth)",
+  "type": "module",
+  "bin": {
+    "substack-cli": "./bin/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {}
+}
