@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getSid } from "../lib/auth.js";
 import { mdToTiptap } from "../lib/md.js";
-import { parseFrontmatter } from "../lib/frontmatter.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../lib/frontmatter.js";
 import {
   createDraft,
   getDraft,
@@ -157,6 +157,25 @@ async function cmdDraftsCreate(rest, flags) {
     const baseDir = file ? path.dirname(path.resolve(file)) : ".";
     const res = await createDraft({ sid, publicationUrl: pub, markdown, title, subtitle, audience: finalAudience, baseDir });
     const url = `https://${pub.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/publish/post/${res.id}`;
+    // persist id back to source file frontmatter so `sync` can track it (like `sync` does)
+    try {
+      if (file && fs.existsSync(file)) {
+        const raw = fs.readFileSync(file, "utf8");
+        const { data, body } = parseFrontmatter(raw);
+        if (!data.id) {
+          const fmPatch = { id: res.id, slug: res.raw.slug || data.slug, title: title || data.title, subtitle: subtitle || data.subtitle };
+          // clean undefined
+          for (const k of Object.keys(fmPatch)) if (fmPatch[k] == null) delete fmPatch[k];
+          const merged = { ...data, ...fmPatch };
+          const fmStr = stringifyFrontmatter(merged);
+          fs.writeFileSync(file, fmStr + body, "utf8");
+          if (!wantJson) console.log(`   Frontmatter: wrote id:${res.id} to ${file}`);
+          else console.error(`   Frontmatter: wrote id:${res.id} to ${file}`);
+        }
+      }
+    } catch (e) {
+      console.error(`  warn: could not update frontmatter for ${file}: ${e.message}`);
+    }
     if (wantJson) console.log(JSON.stringify({ id: res.id, url, title, pub, raw: res.raw }, null, 2));
     else { console.log(`✅ Draft created: id=${res.id}`); console.log(`   Title: ${title}`); console.log(`   URL:   ${url}`); console.log(`   Pub:   ${pub}`); }
   } catch (e) {
