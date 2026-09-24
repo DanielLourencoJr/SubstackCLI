@@ -16,9 +16,9 @@ ESM Node 18+ (native `fetch`). No deps. Mirrors `SubstackKit` style (`bin/cli.js
 | `lib/images.js` | `uploadImage` (`POST {pub}/image` base64) → `captionedImage>image2` + `findLocalImages`/`buildCaptionedImage` (200ms gap) |
 | `lib/files.js` | `findLocalFileLinks`/`handleLocalFileLinks` — local `[text](file.pdf)` links: check `fs.existsSync`, no Substack generic file-upload API (`POST {pub}/image` rejects `application/pdf` `URI de dados inválido`, `POST {pub}/audio/upload` needs `audio/mpeg`), so keep `href` as-is + warn to host PDF externally |
 | `lib/frontmatter.js` | `parseFrontmatter`/`stringifyFrontmatter` — YAML `title/subtitle/audience/slug/tags` (CLI flags override) |
-| `lib/convert.js` | `tiptapToMarkdown`/`draftToMarkdown` — reverse `draft_body` → md with frontmatter, `pullquote`→`:::pullquote`, `calloutBlock`, `captionedImage`→`![alt](src "caption")`, `footnoteAnchor`/`footnote`, `latex`→`$`, `codeBlock`, `horizontal_rule`, opaque `<!-- substack-cli-node:v1 ... -->` |
+| `lib/convert.js` | `tiptapToMarkdown`/`draftToMarkdown` — reverse `draft_body` → md with frontmatter, merge adjacent ordered lists, preserve unsupported nodes (including `subscribeWidget`/`ctaCaption`) as opaque `<!-- substack-cli-node:v1 ... -->` comments; supports `pullquote`→`:::pullquote`, `calloutBlock`, `captionedImage`→`![alt](src "caption")`, `footnoteAnchor`/`footnote`, `latex`→`$`, `codeBlock`, `horizontal_rule` |
 | `lib/sync.js` | `syncFolder` — folder ↔ publication sync: `scanLocal` + `fetchRemoteMap` (paginated `post_management/*`), `hash` diff via `.substack-sync.json` `{id:{path,lastHash,remoteUpdatedAt}}`, `create` (no id → `POST`), `update` (`PUT` + `publish` if `isPublished && --republish`), `pull` (`draftToMarkdown` → `Articles/<slug>.md`), `conflict` detection, `--dry-run/--yes/--republish/--no-pull/--no-push`, 400-800 ms throttling |
-| `tests/md.test.mjs` | 8 offline unit tests (`node --test`) |
+| `tests/md.test.mjs` | 9 offline unit tests (`node --test`), including subscribe-widget/list round-trip regression coverage |
 
 ## Key Conventions (from SubstackAPI docs)
 - Auth: `Cookie: substack.sid=` alone (`SubstackAPI/AUTH.md:5`). No CSRF.

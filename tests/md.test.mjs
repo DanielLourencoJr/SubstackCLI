@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mdToTiptap, parseInline } from "../lib/md.js";
+import { tiptapToMarkdown } from "../lib/convert.js";
 
 test("parseInline bold", () => {
   const nodes = parseInline("Hello **bold** world");
@@ -53,4 +54,40 @@ test("mdToTiptap link + code inline", () => {
   const hasLink = para.content.some((n) => n.marks?.some((m) => m.type === "link"));
   assert.ok(hasCode);
   assert.ok(hasLink);
+});
+
+test("round-trip preserves subscribe widgets and joins adjacent ordered lists", () => {
+  const subscribeWidget = {
+    type: "subscribeWidget",
+    attrs: { url: "%%checkout_url%%", text: "Inscreva-se", language: "pt-br" },
+    content: [{
+      type: "ctaCaption",
+      content: [{ type: "text", text: "Obrigado por ler! Assine gratuitamente." }],
+    }],
+  };
+  const list = (text) => ({
+    type: "orderedList",
+    content: [{
+      type: "listItem",
+      content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+    }],
+  });
+  const original = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "Intro" }] },
+      list("First"),
+      list("Second"),
+      subscribeWidget,
+      { type: "paragraph", content: [{ type: "text", text: "Outro" }] },
+    ],
+  };
+
+  const markdown = tiptapToMarkdown(original);
+  const restored = mdToTiptap(markdown);
+  const lists = restored.content.filter((node) => node.type === "orderedList");
+
+  assert.equal(lists.length, 1);
+  assert.equal(lists[0].content.length, 2);
+  assert.deepEqual(restored.content.find((node) => node.type === "subscribeWidget"), subscribeWidget);
 });
