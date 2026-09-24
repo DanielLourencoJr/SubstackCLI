@@ -10,15 +10,15 @@ ESM Node 18+ (native `fetch`). No deps. Mirrors `SubstackKit` style (`bin/cli.js
 | Path | Purpose |
 |---|---|
 | `bin/cli.js` | CLI dispatcher (`drafts create|list|get|update|delete|publish|schedule|unschedule|export|counts` + `published list`/`scheduled list` + `sync`) — flags: `--pub`, `--title`, `--subtitle`, `--audience`, `--env`, `--sid`, `--json`, `--dry-run`, `--yes`, `--send/--no-send`, `--at`, `--output`, `--md-dir`, `--republish`, `--no-pull/--no-push` |
-| `lib/md.js` | `mdToTiptap(markdown, {imageMap})` + `parseInline` — Tiptap nodes: `heading`/`paragraph`/`bulletList`/`orderedList`/`blockquote`/`codeBlock`/`horizontalRule` + marks `strong`/`em`/`code`/`link`/`strike` + standalone `captionedImage` for `![alt](src "caption")` |
+| `lib/md.js` | `mdToTiptap(markdown, {imageMap})` + `parseInline` — Tiptap nodes: `heading`/`paragraph`/`bulletList`/`orderedList`/`blockquote`/`codeBlock`/`horizontalRule` + marks `strong`/`em`/`code`/`link`/`strike` + standalone `captionedImage`; decodes opaque block and inline Tiptap comments for lossless unsupported-feature round trips |
 | `lib/auth.js` | `getSid` (loads `.env` + central `/mnt/HD/Junior/Projects/.substack.test.env` fallback) + `resolveBylines` via `GET /user/profile/self` |
 | `lib/drafts.js` | `createDraft`/`updateDraft` (auto `uploadLocalImages` → `mdToTiptap` → `draft_bylines`), `getDraft`, `deleteDraft`, `listDrafts`/`listPublished`/`listScheduled`, `prepublishDraft`, `publishDraft`, `scheduleDraft`/`unscheduleDraft`, `getCounts` |
 | `lib/images.js` | `uploadImage` (`POST {pub}/image` base64) → `captionedImage>image2` + `findLocalImages`/`buildCaptionedImage` (200ms gap) |
 | `lib/files.js` | `findLocalFileLinks`/`handleLocalFileLinks` — local `[text](file.pdf)` links: check `fs.existsSync`, no Substack generic file-upload API (`POST {pub}/image` rejects `application/pdf` `URI de dados inválido`, `POST {pub}/audio/upload` needs `audio/mpeg`), so keep `href` as-is + warn to host PDF externally |
 | `lib/frontmatter.js` | `parseFrontmatter`/`stringifyFrontmatter` — YAML `title/subtitle/audience/slug/tags` (CLI flags override) |
-| `lib/convert.js` | `tiptapToMarkdown`/`draftToMarkdown` — reverse `draft_body` → md with frontmatter, merge adjacent ordered lists, preserve unsupported nodes (including `subscribeWidget`/`ctaCaption`) as opaque `<!-- substack-cli-node:v1 ... -->` comments; supports `pullquote`→`:::pullquote`, `calloutBlock`, `captionedImage`→`![alt](src "caption")`, `footnoteAnchor`/`footnote`, `latex`→`$`, `codeBlock`, `horizontal_rule` |
+| `lib/convert.js` | `tiptapToMarkdown`/`draftToMarkdown` — reverse `draft_body` → md with frontmatter, merge adjacent ordered lists, preserve Substack-specific blocks and unsupported marks as opaque `substack-cli-node`/`substack-cli-inline` comments; supports Markdown for common text, lists, quotes, code, rules, and captioned images |
 | `lib/sync.js` | `syncFolder` — folder ↔ publication sync: `scanLocal` + `fetchRemoteMap` (paginated `post_management/*`), `hash` diff via `.substack-sync.json` `{id:{path,lastHash,remoteUpdatedAt}}`, `create` (no id → `POST`), `update` (`PUT` + `publish` if `isPublished && --republish`), `pull` (`draftToMarkdown` → `Articles/<slug>.md`), `conflict` detection, `--dry-run/--yes/--republish/--no-pull/--no-push`, 400-800 ms throttling |
-| `tests/md.test.mjs` | 9 offline unit tests (`node --test`), including subscribe-widget/list round-trip regression coverage |
+| `tests/md.test.mjs` | 30 offline unit tests (`node --test`), including per-node and per-mark lossless round-trip regression coverage |
 
 ## Key Conventions (from SubstackAPI docs)
 - Auth: `Cookie: substack.sid=` alone (`SubstackAPI/AUTH.md:5`). No CSRF.
