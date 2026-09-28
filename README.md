@@ -7,9 +7,10 @@ Upload and manage Substack drafts / published posts via the internal API (`subst
 ## Quick start
 
 ```bash
-# 1. auth — use TEST SID (safe) or point to central file
-echo "SUBSTACK_SID=s:..." > .env
-# or: ln -s /mnt/HD/Junior/Projects/.substack.test.env .env
+# 1. local config — copy the example and fill in a SID privately
+cp .env.example .env
+# .env is ignored by Git; don't commit real credentials
+# SUBSTACK_SYNC_DIR can be changed per device if the mount path differs
 
 # 2. drafts create (creates unpublished draft, never publishes)
 node bin/cli.js drafts create ./post.md --pub danielloureno.substack.com --title "Hello" --json
@@ -25,12 +26,13 @@ drafts create <file.md> [--title t] [--subtitle s] [--pub host] [--audience ever
 drafts list [--limit 20] [--offset 0] [--pub host] [--json]
 drafts get <id> [--pub host] [--json]
 drafts update <id> <file.md> [--title t] [--subtitle s] [--pub host]
+drafts translate <id> <language> <file.md> [--title t] [--subtitle s] [--pub host]
 drafts delete <id> [--pub host] [--yes] [--json]
 drafts publish <id> [--send|--no-send] [--yes] [--pub host] [--json]   # --no-send is silent (default)
 drafts schedule <id> --at 2027-01-01T12:00:00Z [--pub host]
 drafts unschedule <id> [--pub host]
 drafts export <id> [--output file.md] [--md-dir dir] [--pub host] [--json]
-sync [--dir ./Articles] [--pub host] [--dry-run] [--yes] [--republish] [--no-pull] [--no-push] [--json]
+sync [--dir <path>] [--pub host] [--dry-run] [--yes] [--republish] [--no-pull] [--no-push] [--json]
 drafts counts [--pub host] [--json]
 published list [--limit 20] [--offset 0] [--pub host] [--json]
 scheduled list [--limit 20] [--pub host] [--json]
@@ -48,6 +50,17 @@ tags: [a, b]
 # Body...
 ![Alt](./local.png "Caption")  # local paths auto-upload to captionedImage
 ```
+
+Custom language editions can be added to an unpublished draft with `drafts translate`. The publication must have **Additional post languages** enabled. Supply the translated title and body in Markdown; existing image URLs can be reused:
+
+```bash
+node bin/cli.js drafts translate 123456789 en ./post.en.md --pub danielloureno.substack.com
+node bin/cli.js drafts translate 123456789 ja ./post.ja.md --pub danielloureno.substack.com
+```
+
+The command detects the draft's source language, creates the language edition if needed, and updates only that edition. Supported language codes include `en`, `ja`, `pt-br`, `pt-pt`, `en-gb`, and the other languages offered by Substack.
+
+Folder sync uses this precedence: `--dir <path>`, `SUBSTACK_SYNC_DIR`, then `./Articles`. Set `SUBSTACK_SYNC_DIR=/mnt/HD/Junior/42/Substack/Archive/Sync` in your shell environment or local `.env` to use the same canonical folder without baking that machine-specific path into the CLI. An explicit `--dir` still takes precedence.
 
 Safety: `create` never publishes. `publish` requires `--yes`; default `--no-send` (silent). `send` emails irreversibly.
 

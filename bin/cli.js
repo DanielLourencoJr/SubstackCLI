@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { getSid } from "../lib/auth.js";
+import { getSid, loadEnvFile } from "../lib/auth.js";
 import { mdToTiptap } from "../lib/md.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../lib/frontmatter.js";
 import {
@@ -17,6 +17,7 @@ import {
   scheduleDraft,
   unscheduleDraft,
   getCounts,
+  translateDraft,
 } from "../lib/drafts.js";
 
 const VERSION = "0.1.0";
@@ -69,12 +70,13 @@ Usage:
   substack-cli drafts list [--limit N] [--offset N] [--pub host] [--json] [--env file]
   substack-cli drafts get <id> [--pub host] [--json]
   substack-cli drafts update <id> <file.md> [--title t] [--subtitle s] [--pub host]
+  substack-cli drafts translate <id> <language> <file.md> [--title t] [--subtitle s] [--pub host]
   substack-cli drafts delete <id> [--pub host] [--yes] [--json]
   substack-cli drafts publish <id> [--send|--no-send] [--yes] [--pub host] [--json]
   substack-cli drafts schedule <id> --at <ISO8601> [--pub host]
   substack-cli drafts unschedule <id> [--pub host]
   substack-cli drafts export <id> [--output file.md] [--md-dir dir] [--pub host] [--json]
-  substack-cli sync [--dir ./Articles] [--pub host] [--env file] [--dry-run] [--yes] [--republish] [--no-pull] [--no-push] [--json]
+  substack-cli sync [--dir <path>] [--pub host] [--env file] [--dry-run] [--yes] [--republish] [--no-pull] [--no-push] [--json]
   substack-cli drafts counts [--pub host] [--json]
   substack-cli published list [--limit N] [--offset N] [--pub host] [--json]
   substack-cli scheduled list [--limit N] [--pub host] [--json]
@@ -255,6 +257,29 @@ async function cmdDraftsUpdate(rest, flags) {
   } catch (e) { console.error(`❌ drafts update failed: ${e.message}`); process.exit(1); }
 }
 
+async function cmdDraftsTranslate(rest, flags) {
+  const { _, flags: f } = parseArgs(rest);
+  const [id, language, file] = _;
+  if (!id || !language || !file) {
+    console.error("Usage: drafts translate <id> <language> <file.md>");
+    process.exit(1);
+  }
+  const pub = getPub({ ...flags, ...f });
+  const wantJson = !!(flags["json"] || f["json"]);
+  const sid = needSid({ ...flags, ...f });
+  if (!fs.existsSync(file)) { console.error(`File not found: ${file}`); process.exit(1); }
+  const parsed = parseFrontmatter(fs.readFileSync(file, "utf8"));
+  const markdown = parsed.body;
+  const title = f["title"] || flags["title"] || parsed.data.title || null;
+  const subtitle = f["subtitle"] || flags["subtitle"] || parsed.data.subtitle;
+  const baseDir = path.dirname(path.resolve(file));
+  try {
+    const data = await translateDraft({ sid, publicationUrl: pub, id, language, markdown, title, subtitle, baseDir });
+    if (wantJson) console.log(JSON.stringify(data, null, 2));
+    else console.log(`✅ Draft ${id} ${data.language} translation saved: title="${data.title}"`);
+  } catch (e) { console.error(`❌ drafts translate failed: ${e.message}`); process.exit(1); }
+}
+
 async function cmdDraftsDelete(rest, flags) {
   const { _, flags: f } = parseArgs(rest);
   const id = _[0];
@@ -393,7 +418,9 @@ async function cmdSync(rest, flags) {
   const { _, flags: f } = parseArgs(rest);
   // dir from first positional or --dir
   const dirFromPos = _[0];
-  const dir = f["dir"] || flags["dir"] || dirFromPos || "./Articles";
+  // Load local CLI preferences even when --env points to a separate credentials file.
+  loadEnvFile(path.resolve(".env"));
+  const dir = f["dir"] || flags["dir"] || dirFromPos || process.env.SUBSTACK_SYNC_DIR || "./Articles";
   const pub = getPub({ ...flags, ...f });
   const wantJson = !!(f["json"] || flags["json"]);
   const dryRun = !!(f["dry-run"] || flags["dry-run"] || f["dryRun"]);
@@ -498,6 +525,7 @@ async function main() {
   if (cmd === "list") return cmdDraftsList(rest, globalFlags);
   if (cmd === "get") return cmdDraftsGet(rest, globalFlags);
   if (cmd === "update") return cmdDraftsUpdate(rest, globalFlags);
+  if (cmd === "translate") return cmdDraftsTranslate(rest, globalFlags);
   if (cmd === "delete") return cmdDraftsDelete(rest, globalFlags);
   if (cmd === "publish") return cmdDraftsPublish(rest, globalFlags);
   if (cmd === "schedule") return cmdDraftsSchedule(rest, globalFlags);
