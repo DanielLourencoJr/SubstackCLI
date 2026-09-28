@@ -62,6 +62,19 @@ The command detects the draft's source language, creates the language edition if
 
 Folder sync uses this precedence: `--dir <path>`, `SUBSTACK_SYNC_DIR`, then `./Articles`. Set `SUBSTACK_SYNC_DIR=/mnt/HD/Junior/42/Substack/Archive/Sync` in your shell environment or local `.env` to use the same canonical folder without baking that machine-specific path into the CLI. An explicit `--dir` still takes precedence.
 
+Sync stores each post under its status and edition:
+
+```text
+Drafts/
+  Originals/<slug>.md
+  Translations/<language>/<slug>.md
+Published/
+  Originals/<slug>.md
+  Translations/<language>/<slug>.md
+```
+
+Translation files keep the same Substack post `id` and include `edition: translation` plus their language code in frontmatter. Originals use `edition: original`. Pulls include custom language editions attached to each post. Use `--no-push` for a read-only Substack sync that only organizes local files and downloads remote changes.
+
 Safety: `create` never publishes. `publish` requires `--yes`; default `--no-send` (silent). `send` emails irreversibly.
 
 ## Examples

@@ -453,9 +453,11 @@ async function cmdSync(rest, flags) {
           if (a.type === "create") console.log(`  + create ${a.path} title="${a.title}"`);
           else if (a.type === "update") console.log(`  ~ update ${a.path} id=${a.id}${a.isPublished ? " (published)" : ""}`);
           else if (a.type === "pull") console.log(`  - pull id=${a.id} ${a.title ? `title="${a.title}"` : a.path ? `path=${a.path}` : ""}`);
+          else if (a.type === "move") console.log(`  → move ${a.from} → ${a.path}`);
           else if (a.type === "conflict") console.log(`  ! conflict id=${a.id} ${a.path} (local and remote both changed)`);
+          else if (a.type === "orphan") console.log(`  ? keep local file with missing remote id=${a.id}: ${a.path}`);
         }
-        console.log(`  summary: create=${res.toCreate} update=${res.toUpdate} pull=${res.toPull} conflict=${res.conflicts}`);
+        console.log(`  summary: create=${res.toCreate} update=${res.toUpdate} pull=${res.toPull} move=${res.toMove || 0} conflict=${res.conflicts}`);
         if (!dryRun && !yes && res.actions.length) console.log(`  run with --yes to apply`);
         if (res.conflicts && res.conflicts > 0) console.log(`  conflicts need manual resolution`);
       }
