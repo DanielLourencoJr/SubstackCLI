@@ -77,6 +77,20 @@ Translation files keep the same Substack post `id` and include `edition: transla
 
 Safety: `create` never publishes. `publish` requires `--yes`; default `--no-send` (silent). `send` emails irreversibly.
 
+### Publish for review, then email
+
+To review the public page before notifying subscribers, publish the draft silently, open the returned URL, and send it later using the same post ID:
+
+```bash
+# Make the post public without emailing subscribers
+node bin/cli.js drafts publish 123456789 --no-send --yes --pub danielloureno.substack.com
+
+# Review the public URL printed by the command, then send the existing post
+node bin/cli.js drafts publish 123456789 --send --yes --pub danielloureno.substack.com
+```
+
+The second command acts on the already-published post; it does not create another post. `--send` requests the subscriber email, and `--yes` confirms the irreversible action. If no review period is needed, use `--send --yes` on the draft to publish and email it in one step. For translated posts, readers are shown the custom edition matching their device language when available.
+
 ## Examples
 
 ```bash
