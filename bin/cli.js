@@ -66,10 +66,10 @@ function help() {
   console.log(`substack-cli v${VERSION} — upload/manage Substack drafts
 
 Usage:
-  substack-cli drafts create <file.md> [options]
+  substack-cli drafts create <file.md> [--mentions map.json] [options]
   substack-cli drafts list [--limit N] [--offset N] [--pub host] [--json] [--env file]
   substack-cli drafts get <id> [--pub host] [--json]
-  substack-cli drafts update <id> <file.md> [--title t] [--subtitle s] [--pub host]
+  substack-cli drafts update <id> <file.md> [--title t] [--subtitle s] [--mentions map.json] [--pub host]
   substack-cli drafts translate <id> <language> <file.md> [--title t] [--subtitle s] [--pub host]
   substack-cli drafts delete <id> [--pub host] [--yes] [--json]
   substack-cli drafts publish <id> [--send|--no-send] [--yes] [--pub host] [--json]
@@ -93,6 +93,27 @@ Examples:
   substack-cli drafts list --limit 10 --json
   substack-cli drafts publish 123 --no-send --yes
 `);
+}
+
+function loadMentions(flags) {
+  const file = flags["mentions"] || null;
+  if (!file) return null;
+  if (!fs.existsSync(file)) {
+    console.error(`Mentions file not found: ${file}`);
+    process.exit(1);
+  }
+  let map;
+  try {
+    map = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (e) {
+    console.error(`Invalid --mentions file: ${e.message}`);
+    process.exit(1);
+  }
+  if (!map || typeof map !== "object" || Array.isArray(map)) {
+    console.error("Invalid --mentions file: expected an object keyed by handle");
+    process.exit(1);
+  }
+  return map;
 }
 
 function needSid(flags) {
@@ -157,7 +178,8 @@ async function cmdDraftsCreate(rest, flags) {
   const sid = needSid({ ...flags, ...f, env: envFile, sid: sidOverride });
   try {
     const baseDir = file ? path.dirname(path.resolve(file)) : ".";
-    const res = await createDraft({ sid, publicationUrl: pub, markdown, title, subtitle, audience: finalAudience, baseDir });
+    const mentions = loadMentions({ ...flags, ...f });
+    const res = await createDraft({ sid, publicationUrl: pub, markdown, title, subtitle, audience: finalAudience, baseDir, mentions });
     const url = `https://${pub.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/publish/post/${res.id}`;
     // persist id back to source file frontmatter so `sync` can track it (like `sync` does)
     try {
@@ -250,8 +272,9 @@ async function cmdDraftsUpdate(rest, flags) {
   if (!subtitle && parsed.data.subtitle) subtitle = String(parsed.data.subtitle);
   if (!audience && parsed.data.audience) audience = String(parsed.data.audience);
   const baseDir = path.dirname(path.resolve(file));
+  const mentions = loadMentions({ ...flags, ...f });
   try {
-    const data = await updateDraft({ sid, publicationUrl: pub, id, markdown, title, subtitle, audience, baseDir });
+    const data = await updateDraft({ sid, publicationUrl: pub, id, markdown, title, subtitle, audience, baseDir, mentions });
     if (wantJson) console.log(JSON.stringify(data, null, 2));
     else console.log(`✅ Draft ${id} updated: title="${data.draft_title || title}"`);
   } catch (e) { console.error(`❌ drafts update failed: ${e.message}`); process.exit(1); }
@@ -273,8 +296,9 @@ async function cmdDraftsTranslate(rest, flags) {
   const title = f["title"] || flags["title"] || parsed.data.title || null;
   const subtitle = f["subtitle"] || flags["subtitle"] || parsed.data.subtitle;
   const baseDir = path.dirname(path.resolve(file));
+  const mentions = loadMentions({ ...flags, ...f });
   try {
-    const data = await translateDraft({ sid, publicationUrl: pub, id, language, markdown, title, subtitle, baseDir });
+    const data = await translateDraft({ sid, publicationUrl: pub, id, language, markdown, title, subtitle, baseDir, mentions });
     if (wantJson) console.log(JSON.stringify(data, null, 2));
     else console.log(`✅ Draft ${id} ${data.language} translation saved: title="${data.title}"`);
   } catch (e) { console.error(`❌ drafts translate failed: ${e.message}`); process.exit(1); }

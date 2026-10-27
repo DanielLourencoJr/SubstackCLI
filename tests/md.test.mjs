@@ -187,3 +187,40 @@ test("round-trip preserves image galleries", () => {
   };
   assert.deepEqual(roundTripBlock(gallery), gallery);
 });
+
+test("known handles become substack_mentions atoms", () => {
+  const mentions = { lemeiro: { name: "Lemeiro", id: 123, photo_url: "https://x/a.png" } };
+  const doc = mdToTiptap("O @lemeiro escreve.", { mentions });
+  const nodes = doc.content[0].content;
+  assert.deepEqual(nodes.map((n) => n.type), ["text", "substack_mentions", "text"]);
+  const m = nodes[1].attrs;
+  assert.equal(m.name, "Lemeiro");
+  assert.equal(m.id, 123);
+  assert.equal(m.type, "user");
+  assert.equal(m.photo_url, "https://x/a.png");
+  assert.match(m.uuid, /^[0-9a-f-]{36}$/);
+  assert.equal(nodes[2].text, " escreve.");
+});
+
+test("unknown handles and mid-word ats stay text", () => {
+  const mentions = { lemeiro: { name: "Lemeiro", id: 1 } };
+  const doc = mdToTiptap("e-mail a@lemeiro e @ninguem", { mentions });
+  assert.equal(doc.content[0].content.length, 1);
+  assert.equal(doc.content[0].content[0].text, "e-mail a@lemeiro e @ninguem");
+});
+
+test("mentions inside code stay code", () => {
+  const mentions = { lemeiro: { name: "Lemeiro", id: 1 } };
+  const doc = mdToTiptap("`@lemeiro`", { mentions });
+  assert.equal(doc.content[0].content[0].type, "text");
+  assert.equal(doc.content[0].content[0].marks[0].type, "code");
+});
+
+test("mention atoms survive an export round-trip", () => {
+  const mention = {
+    type: "substack_mentions",
+    attrs: { name: "Lemeiro", id: 1, type: "user", url: null, photo_url: null, uuid: "x" },
+  };
+  const doc = { type: "doc", content: [{ type: "paragraph", content: [mention] }] };
+  assert.deepEqual(mdToTiptap(tiptapToMarkdown(doc)).content[0].content[0], mention);
+});

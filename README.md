@@ -64,6 +64,26 @@ Two or more images side by side use a gallery block. The optional text after
 Substack caps galleries at 9 images; a block with a single image is uploaded as
 a normal captioned image.
 
+### Mentions
+
+A `@handle` is plain text unless you hand the CLI the matching Substack user.
+Pass a JSON map and the handle becomes a real mention chip (which notifies the
+user when the post goes out):
+
+```json
+{
+  "lemeiro": { "name": "Lemeiro", "id": 12345, "photo_url": "https://.../a.png" }
+}
+```
+
+```bash
+substack-cli drafts update 123 post.md --mentions mentions.json
+```
+
+Handles missing from the map stay text, as does anything inside code or after a
+word character (`a@lemeiro`). Captions are plain strings, so mentions there are
+not converted.
+
 Custom language editions can be added to an unpublished draft with `drafts translate`. The publication must have **Additional post languages** enabled. Supply the translated title and body in Markdown; existing image URLs can be reused:
 
 ```bash
