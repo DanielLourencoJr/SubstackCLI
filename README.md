@@ -51,6 +51,19 @@ tags: [a, b]
 ![Alt](./local.png "Caption")  # local paths auto-upload to captionedImage
 ```
 
+Two or more images side by side use a gallery block. The optional text after
+`:::gallery` becomes the caption under the whole group:
+
+```markdown
+:::gallery Pôster e trecho do mesmo autor
+![Pôster](./poster.png)
+![Trecho](./quote.png)
+:::
+```
+
+Substack caps galleries at 9 images; a block with a single image is uploaded as
+a normal captioned image.
+
 Custom language editions can be added to an unpublished draft with `drafts translate`. The publication must have **Additional post languages** enabled. Supply the translated title and body in Markdown; existing image URLs can be reused:
 
 ```bash

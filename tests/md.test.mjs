@@ -154,3 +154,36 @@ for (const [name, node] of inlineNodeCases) {
     assert.deepEqual(roundTripInline(node), node);
   });
 }
+
+test("mdToTiptap gallery block", () => {
+  const md = ":::gallery Legenda aqui\n![a](https://x/a.png)\n![b](https://x/b.png)\n:::";
+  const node = mdToTiptap(md).content[0];
+  assert.equal(node.type, "imageGallery");
+  assert.equal(node.attrs.gallery.images.length, 2);
+  assert.equal(node.attrs.gallery.images[0].src, "https://x/a.png");
+  assert.equal(node.attrs.gallery.caption, "Legenda aqui");
+  assert.equal(node.attrs.gallery.staticGalleryImage, null);
+});
+
+test("mdToTiptap single-image gallery becomes a captionedImage", () => {
+  const md = ":::gallery\n![a](https://x/a.png)\n:::";
+  assert.equal(mdToTiptap(md).content[0].type, "captionedImage");
+});
+
+test("round-trip preserves image galleries", () => {
+  const gallery = {
+    type: "imageGallery",
+    attrs: {
+      gallery: {
+        images: [
+          { type: "image/png", src: "https://x/a.png" },
+          { type: "image/png", src: "https://x/b.png" },
+        ],
+        caption: "Duas imagens",
+        alt: "a",
+        staticGalleryImage: null,
+      },
+    },
+  };
+  assert.deepEqual(roundTripBlock(gallery), gallery);
+});
